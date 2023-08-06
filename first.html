@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Name and Nickname</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        /* Styles for the floating chat box */
+        .chat-box {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            height: 300px; /* Set the height to the same value as width to make it square */
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            cursor: move;
+        }
+    </style>
+</head>
+<body>
+    <h1>User Name and Nickname</h1>
+    <form>
+        <label for="userName">Name:</label>
+        <input type="text" id="userName" name="userName" required>
+        <br>
+        <label for="nickName">Nickname:</label>
+        <input type="text" id="nickName" name="nickName" required>
+        <br>
+        <button type="button" onclick="submitForm()">Submit</button>
+        <br>
+        <br>
+        <label  id="text"></label>
+        <br>
+        <br>
+    </form>
+    <h1>List Display</h1>
+    <ul id="listDisplay"></ul>
+
+    <button id="room" onclick="changepage()">create</button>
+
+</body>
+<script>
+    var soket=io();
+    // soket.on('connected',function(){
+    //     var text = document.getElementById("text");
+    //     text.append('connected');
+
+    // })
+    var text = document.getElementById("text");
+    function submitForm() {
+        var userName = document.getElementById("userName").value;
+        var nickName = document.getElementById("nickName").value;
+        //var message = "Hello, " + userName + "! Your nickname is " + nickName + ".";
+       // alert(message);
+    
+        let data={
+        Name:userName,
+        nickName:nickName
+        };
+        soket.emit('user',data);
+    }
+    soket.on('err',function(err){alert("Enter"+err)})
+    soket.on('no-err',function(note){
+        console.log(note);
+       text.append(note);
+    })
+
+    soket.on('user-list',function(list){
+
+        var listDisplay = document.getElementById('listDisplay');
+        listDisplay.innerHTML = '';
+
+        for (let i=0;i<list.length;i++) {
+            var listItem = document.createElement('li');
+            listItem.textContent =  list[i];
+            listDisplay.appendChild(listItem);
+            listItem.onclick=function(){
+           // Access the text content when clicked
+            var clickedText = this.textContent;
+          // Do something with the clicked text, e.g., alert it
+            alert('Clicked: ' + clickedText);
+            console.log('clicked : '+clickedText);
+            console.log('userName : '+userName);
+            console.log('nickName : '+nickName);
+            let frindNickName=clickedText;
+            soket.emit('nickname',frindNickName);
+
+
+            soket.on('username',function(fusername){
+                console.log("fusername : "+fusername);
+                showChat(fusername,frindNickName);
+
+            })
+            
+            }
+        }
+    })
+    var i=0;
+    function createChatBox(frindNickName, userName) {
+            // Create a new chat box for the current list item
+            var chatBox = document.createElement('div');
+            chatBox.className = 'chat-box';
+            chatBox.setAttribute('data-chat-id', frindNickName); // Set the data-chat-id attribute
+            chatBox.innerHTML = `
+                <div onclick="closeChat('${frindNickName}')" class="closeChat">X</div>
+                <h2>${userName}'s Chat Box</h2>
+                <div class="chat-content-container">
+                    <div class="chat-messages"></div>
+                </div>
+                <input type="text" class="new-message" placeholder="Type your message...">
+                <button onclick="sendMessage('${frindNickName}')">Send</button>
+            `;
+
+            return chatBox;
+        }
+
+        // Function to show the floating chat box
+        function showChat(userName,frindNickName) {
+            var chatBoxCount = document.querySelectorAll('.chat-box').length;
+            var chatBoxId = 'chatBox_' + (chatBoxCount + 1); // Create a unique ID for each chat box
+
+            // Create the chat box node
+            var chatBox = createChatBox(frindNickName, userName);
+
+            // Append the new chat box to the document
+            document.body.appendChild(chatBox);
+
+            // Show the chat box
+            chatBox.style.display = 'block';
+
+            // Make the chat box movable
+            makeChatBoxMovable(chatBox);
+        }
+
+        // Function to close the chat box
+        function closeChat(chatBoxId) {
+            var chatBox = document.querySelector(`[data-chat-id="${chatBoxId}"]`);
+            // Remove the chat box from the document
+            chatBox.parentNode.removeChild(chatBox);
+            i=0;
+        }
+
+        // Function to make the chat box movable
+        function makeChatBoxMovable(chatBox) {
+            var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            var header = chatBox.querySelector('h2');
+            header.onmousedown = dragMouseDown;
+
+            function dragMouseDown(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+
+            function elementDrag(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                chatBox.style.top = (chatBox.offsetTop - pos2) + "px";
+                chatBox.style.left = (chatBox.offsetLeft - pos1) + "px";
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+
+        // ... Your existing JavaScript code ...
+
+        // Updated sendMessage function to associate messages with the specific chat box
+        function sendMessage(frindNickName) {
+            i++;
+            console.log("button",frindNickName);
+            var chatBox = document.querySelector(`[data-chat-id="${frindNickName}"]`);
+            var newMessageInput = chatBox.querySelector('.new-message');
+            var chatMessages = chatBox.querySelector('.chat-messages');
+            var message = newMessageInput.value.trim();
+
+            if (message !== '') {
+                // Append the new message to the chat content container
+                console.log("frindNickName "+frindNickName);
+                soket.emit('msg',{message,frindNickName});
+                var messageElement = document.createElement('div');
+                messageElement.textContent = message;
+                chatMessages.appendChild(messageElement);
+
+                // Clear the input area after sending the message
+                newMessageInput.value = '';
+            }
+        }soket.on('fmsg', function(a) {
+
+  console.log("out" + a.msg);
+
+  if (i===0) {
+    console.log("!" + a.name);
+    console.log("!" + a.nick);
+    showChat(a.name, a.nick);
+  var chatBox = document.querySelector(`[data-chat-id="${a.nick}"]`);
+    var chatMessages = chatBox.querySelector('.chat-messages');
+
+    if (a.msg !== '') {
+      // Append the new message to the chat content container
+      var messageElement = document.createElement('div');
+      messageElement.textContent = a.msg;
+      chatMessages.appendChild(messageElement);
+      i++;
+    }
+  } else {
+    var chatBox = document.querySelector(`[data-chat-id="${a.nick}"]`);
+  try{  var chatMessages = chatBox.querySelector('.chat-messages');
+  }
+catch(e){
+
+    showChat(a.name, a.nick);
+  var chatBox = document.querySelector(`[data-chat-id="${a.nick}"]`);
+    var chatMessages = chatBox.querySelector('.chat-messages');
+
+}    if (a.msg !== '') {
+      // Append the new message to the chat content container
+      var messageElement = document.createElement('div');
+      messageElement.textContent = a.msg;
+      chatMessages.appendChild(messageElement);
+    }
+
+ }
+});
+function changepage()
+{
+    window.location.href='/rooms'
+}
+</script>
+</html>
